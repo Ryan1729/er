@@ -20,7 +20,18 @@ e (short for executables)
 er (short for executable runner)
     I like this one. You go to run something and you tell the computer `er` and then you say what you want to run.
 
+## Bare minimum features
+
+* ability to type executable names and arguments, and execute that command.
+* ability to halt spawned processes. Preferably with a keyboard shortcut.
+* ability to see output of executed programs
+* command history for the current session
+* ability to copy text from the window
+* ability to paste text into the command prompt
+
 ## Extra Features
 
-I'll also want to be able to sequence commands together. The bash `&&`, `||` and `;` notation seem as good as any. Also, many executables will want to be bash compatible, so they are unlikely to require input containing those characters. 
+* I'll also want to be able to sequence commands together. The bash `&&`, `||` and `;` notation seem as good as any. Also, many executables will want to be bash compatible, so they are unlikely to require input containing those characters. 
+* command history that is saved to disk on close
+* command history that is automatically saved to disk periodically
 

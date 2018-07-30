@@ -1,0 +1,10 @@
+[package]
+name = "bear-lib-terminal-template"
+version = "0.1.0"
+authors = ["Ryan1729 <Ryan1729@gmail.com>"]
+
+[workspace]
+
+[dependencies]
+bear-lib-terminal = "1.3.3"
+rand = "0.3"

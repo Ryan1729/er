@@ -22,9 +22,60 @@ pub struct Platform {
     pub get_layer: fn() -> i32,
 }
 
+use std::env;
+use std::io;
+use std::path::PathBuf;
+
 pub struct State {
+    pub size: Size,
+    pub dir: io::Result<PathBuf>,
+    pub prompt: String,
+    pub command: String,
+    pub output: String,
     pub rng: StdRng,
     pub ui_context: UIContext,
+    pub left_mouse_pressed: bool,
+    pub left_mouse_released: bool,
+}
+
+const PROMPT_ARROW: char = '>';
+
+fn render_prompt(s: &mut String, dir: &io::Result<PathBuf>) {
+    use std::fmt::Write;
+    s.clear();
+
+    match dir {
+        Ok(d) => write!(s, "{}{}", d.to_string_lossy(), PROMPT_ARROW),
+        Err(e) => write!(s, "current dir error: {:?}{}", e.kind(), PROMPT_ARROW),
+    };
+}
+
+impl State {
+    pub fn new(rng: StdRng, size: Size) -> Self {
+        let dir = env::current_dir();
+
+        let mut prompt = String::with_capacity(size.width as _);
+        render_prompt(&mut prompt, &dir);
+
+        let command = String::with_capacity(size.width as _);
+        let output = String::with_capacity(size.width as usize * size.height as usize);
+
+        State {
+            size,
+            dir,
+            prompt,
+            command,
+            output,
+            rng,
+            ui_context: UIContext::new(),
+            left_mouse_pressed: false,
+            left_mouse_released: false,
+        }
+    }
+
+    pub fn refresh_prompt(&mut self) {
+        render_prompt(&mut self.prompt, &self.dir);
+    }
 }
 
 pub type UiId = i32;

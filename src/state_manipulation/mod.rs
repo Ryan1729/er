@@ -1,6 +1,9 @@
 use common::*;
 
 use rand::{Rng, SeedableRng, StdRng};
+use std::borrow::Cow;
+use std::env;
+use std::path::{Path, PathBuf};
 
 //NOTE(Ryan1729): debug_assertions only appears to work correctly when the
 //crate is not a dylib. Assuming you make this crate *not* a dylib on release,
@@ -65,25 +68,7 @@ pub fn update_and_render(platform: &Platform, state: &mut State, events: &mut Ve
                 ctrl: _,
                 shift: _,
             } => {
-                use std::process::Command;
-
-                let space_at = state.command.find(" ").unwrap_or(state.command.len());
-                let (exe_name, args) = state.command.split_at(space_at);
-                let output = Command::new(exe_name)
-                    .arg(args)
-                    .output()
-                    .expect("failed to execute process");
-
-                println!("status: {}", output.status);
-                println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-                println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-
-                use std::fmt::Write;
-                write!(
-                    &mut state.output,
-                    "{}",
-                    String::from_utf8_lossy(&output.stdout)
-                );
+                execute_command(state);
             }
             _ => (),
         }
@@ -103,6 +88,83 @@ pub fn update_and_render(platform: &Platform, state: &mut State, events: &mut Ve
     (platform.print_xy)(0, y, &state.output);
 
     false
+}
+
+fn execute_command(state: &mut State) {
+    let space_at = state.command.find(" ").unwrap_or(state.command.len());
+    let (raw_exe_name, args) = state.command.split_at(space_at);
+
+    use std::fmt::Write;
+    if let Some(exe_name) = find_exe_name(Path::new(raw_exe_name)) {
+        use std::ffi;
+
+        let path = env::var_os("PATH").unwrap_or(ffi::OsString::new());
+
+        println!("{:?}\n", path);
+        write!(&mut state.output, "{:?}\n", path);
+
+        use std::process::Command;
+        let output = Command::new(exe_name)
+            .arg(args)
+            .env("PATH", path)
+            .output()
+            .expect("failed to execute process");
+
+        println!("status: {}", output.status);
+        println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
+        println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+
+        write!(
+            &mut state.output,
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+    } else {
+        write!(&mut state.output, "Could not find \"{}\"!", raw_exe_name);
+    }
+}
+
+// derived from https://stackoverflow.com/a/37499032/4496839
+fn find_exe_name<P>(raw_exe_name: P) -> Option<PathBuf>
+where
+    P: AsRef<Path>,
+{
+    let exe_name = enhance_exe_name(raw_exe_name.as_ref());
+
+    env::var_os("PATH").and_then(|paths| {
+        env::split_paths(&paths)
+            .filter_map(|dir| {
+                let full_path = dir.join(&raw_exe_name);
+                if full_path.is_file() {
+                    Some(full_path)
+                } else {
+                    None
+                }
+            })
+            .next()
+    })
+}
+
+#[cfg(not(target_os = "windows"))]
+fn enhance_exe_name(exe_name: &Path) -> Cow<Path> {
+    exe_name.into()
+}
+
+#[cfg(target_os = "windows")]
+fn enhance_exe_name(exe_name: &Path) -> Cow<Path> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+
+    let raw_input: Vec<_> = exe_name.as_os_str().encode_wide().collect();
+    let raw_extension: Vec<_> = OsStr::new(".exe").encode_wide().collect();
+
+    if raw_input.ends_with(&raw_extension) {
+        exe_name.into()
+    } else {
+        let mut with_exe = exe_name.as_os_str().to_owned();
+        with_exe.push(".exe");
+        PathBuf::from(with_exe).into()
+    }
 }
 
 /// Example:
@@ -275,7 +337,7 @@ fn typing_events(platform: &Platform, state: &mut State, event: &Event) {
         Event::KeyPressed {
             key: KeyCode::Space,
             ctrl: _,
-            shift: true,
+            shift: _,
         } => {
             state.command.push(' ');
         }

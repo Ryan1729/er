@@ -100,8 +100,7 @@ fn execute_command(state: &mut State) {
 
         let path = env::var_os("PATH").unwrap_or(ffi::OsString::new());
 
-        println!("{:?}\n", path);
-        write!(&mut state.output, "{:?}\n", path);
+        write!(&mut state.output, "{:?} {}\n", exe_name.as_os_str(), args);
 
         use std::process::Command;
         let output = Command::new(exe_name)
@@ -134,7 +133,7 @@ where
     env::var_os("PATH").and_then(|paths| {
         env::split_paths(&paths)
             .filter_map(|dir| {
-                let full_path = dir.join(&raw_exe_name);
+                let full_path = dir.join(&exe_name);
                 if full_path.is_file() {
                     Some(full_path)
                 } else {

@@ -104,7 +104,7 @@ fn execute_command(state: &mut State) {
 
         use std::process::Command;
         let output = Command::new(exe_name)
-            .arg(args)
+            .args(&(args.split_whitespace().collect::<Vec<_>>()))
             .env("PATH", path)
             .output()
             .expect("failed to execute process");

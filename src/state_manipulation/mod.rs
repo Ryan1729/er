@@ -90,11 +90,11 @@ pub fn update_and_render(platform: &Platform, state: &mut State, events: &mut Ve
     false
 }
 
-use std::fmt::Write;
 fn execute_command(state: &mut State) {
     let space_at = state.command.find(" ").unwrap_or(state.command.len());
     let (raw_exe_name, args) = state.command.split_at(space_at);
 
+    use std::fmt::Write;
     if let Some(exe_name) = find_exe_name(Path::new(raw_exe_name)) {
         use std::ffi;
 
@@ -102,61 +102,25 @@ fn execute_command(state: &mut State) {
 
         write!(&mut state.output, "{:?} {}\n", exe_name.as_os_str(), args);
 
-        execute(&mut state.output, exe_name, args);
+        use std::process::Command;
+        let output = Command::new(exe_name)
+            .args(&(args.split_whitespace().collect::<Vec<_>>()))
+            .env("PATH", path)
+            .output()
+            .expect("failed to execute process");
+
+        println!("status: {}", output.status);
+        println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
+        println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+
+        write!(
+            &mut state.output,
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
     } else {
         write!(&mut state.output, "Could not find \"{}\"!", raw_exe_name);
     }
-}
-
-#[cfg(not(windows))]
-fn execute(state_output: &mut String, exe_name: PathBuf, args: &str) {
-    use std::process::Command;
-    let output = Command::new(exe_name)
-        .args(&(args.split_whitespace().collect::<Vec<_>>()))
-        .env("PATH", path)
-        .output()
-        .expect("failed to execute process");
-
-    println!("status: {}", output.status);
-    println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-    println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-
-    write!(state_output, "{}", String::from_utf8_lossy(&output.stdout));
-}
-
-#[cfg(windows)]
-extern crate winapi;
-
-#[cfg(windows)]
-fn execute(state_output: &mut String, exe_name: PathBuf, args: &str) {
-    use self::winapi::um::shellapi::ShellExecuteW;
-    use std::ptr::null_mut;
-
-    use std::ffi::OsStr;
-    use std::iter::once;
-    use std::os::windows::ffi::OsStrExt;
-    fn win32_string(value: &str) -> Vec<u16> {
-        OsStr::new(value).encode_wide().chain(once(0)).collect()
-    }
-
-    fn win32_string_from_os_str(value: &OsStr) -> Vec<u16> {
-        value.encode_wide().chain(once(0)).collect()
-    }
-
-    let operation = win32_string("open");
-    let wide_exe_name: Vec<u16> = win32_string_from_os_str(exe_name.as_os_str());
-    let parameters = win32_string(args);
-
-    ShellExecuteW(
-        null_mut(),
-        operation.as_ptr(),
-        wide_exe_name.as_ptr(),
-        parameters.as_ptr(),
-        null_mut(),
-        0,
-    );
-
-    write!(state_output, "{}", "windows");
 }
 
 // derived from https://stackoverflow.com/a/37499032/4496839
@@ -175,7 +139,8 @@ where
                 } else {
                     None
                 }
-            }).next()
+            })
+            .next()
     })
 }
 

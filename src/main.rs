@@ -1,148 +1,78 @@
-extern crate bear_lib_terminal;
-extern crate rand;
+use std::env;
+use std::io::{stdin, stdout, Write};
+use std::path::Path;
+use std::process::{Child, Command, Stdio};
 
-mod common;
-mod state_manipulation;
-
-use bear_lib_terminal::geometry::{Point, Rect, Size};
-use bear_lib_terminal::terminal::{self, config, state, Event, KeyCode};
-use bear_lib_terminal::Color;
-
-use std::mem;
-
-use common::*;
-
-pub fn new_state(size: common::Size) -> State {
-    state_manipulation::new_state(size)
-}
-
-pub fn update_and_render(platform: &Platform, state: &mut State, events: &Vec<Event>) -> bool {
-    let mut new_events: Vec<common::Event> = unsafe {
-        events
-            .iter()
-            .map(|a| mem::transmute::<Event, common::Event>(*a))
-            .collect()
-    };
-    state_manipulation::update_and_render(platform, state, &mut new_events)
-}
-
-fn main() {
-    let title = option_env!("CARGO_PKG_NAME").unwrap_or("____");
-    terminal::open(title, 80, 30);
-    terminal::set(config::Window::empty().resizeable(true));
-    terminal::set(vec![
-        config::InputFilter::Group {
-            group: config::InputFilterGroup::Keyboard,
-            both: false,
-        },
-        config::InputFilter::Group {
-            group: config::InputFilterGroup::Mouse,
-            both: false,
-        },
-    ]);
-
-    let mut state = new_state(size());
-
-    let platform = Platform {
-        print_xy: terminal::print_xy,
-        clear: clear,
-        size: size,
-        pick: pick,
-        mouse_position: mouse_position,
-        clicks: terminal::state::mouse::clicks,
-        key_pressed: key_pressed,
-        set_colors: set_colors,
-        get_colors: get_colors,
-        set_layer: terminal::layer,
-        get_layer: terminal::state::layer,
-        set_foreground: set_foreground,
-        get_foreground: get_foreground,
-        set_background: set_background,
-        get_background: get_background,
-    };
-
-    //if this isn't set to something explicitly `get_foreground`
-    //will return 0 (transparent black) messing up code that
-    //reads the foreground then sets a different one then sets
-    // it back to what it was before.
-    set_foreground(common::Color {
-        red: 255,
-        green: 255,
-        blue: 255,
-        alpha: 255,
-    });
-
-    let mut events = Vec::new();
-
-    update_and_render(&platform, &mut state, &mut events);
-
-    terminal::refresh();
-
+fn main(){
     loop {
-        events.clear();
+        // use the `>` character as the prompt
+        // need to explicitly flush this to ensure it prints before read_line
+        print!("> ");
+        stdout().flush().unwrap();
 
-        while let Some(event) = terminal::read_event() {
-            events.push(event);
+        let mut input = String::new();
+        stdin().read_line(&mut input).unwrap();
+
+        // read_line leaves a trailing newline, which trim removes
+        // this needs to be peekable so we can determine when we are on the last command
+        let mut commands = input.trim().split(" | ").peekable();
+        let mut previous_command = None;
+
+        while let Some(command) = commands.next()  {
+
+            // everything after the first whitespace character is interpreted as args to the command
+            let mut parts = command.trim().split_whitespace();
+            let command = parts.next().unwrap();
+            let args = parts;
+
+            match command {
+                "cd" => {
+                    // default to '/' as new directory if one was not provided
+                    let new_dir = args.peekable().peek().map_or("/", |x| *x);
+                    let root = Path::new(new_dir);
+                    if let Err(e) = env::set_current_dir(&root) {
+                        eprintln!("{}", e);
+                    }
+
+                    previous_command = None;
+                },
+                "exit" => return,
+                command => {
+                    let stdin = previous_command
+                        .map_or(Stdio::inherit(),
+                                |output: Child| Stdio::from(output.stdout.unwrap()));
+
+                    let stdout = if commands.peek().is_some() {
+                        // there is another command piped behind this one
+                        // prepare to send output to the next command
+                        Stdio::piped()
+                    } else {
+                        // there are no more commands piped behind this one
+                        // send output to shell stdout
+                        Stdio::inherit()
+                    };
+
+                    let output = Command::new(command)
+                        .args(args)
+                        .stdin(stdin)
+                        .stdout(stdout)
+                        .spawn();
+
+                    match output {
+                        Ok(output) => { previous_command = Some(output); },
+                        Err(e) => {
+                            previous_command = None;
+                            eprintln!("{}", e);
+                        },
+                    };
+                }
+            }
         }
 
-        terminal::clear(None);
-
-        if update_and_render(&platform, &mut state, &mut events) {
-            //quit requested
-            break;
+        if let Some(mut final_command) = previous_command {
+            // block until the final command has finished
+            final_command.wait().unwrap();
         }
 
-        terminal::refresh();
     }
-
-    terminal::close();
-}
-
-fn clear(area: Option<common::Rect>) {
-    unsafe { terminal::clear(mem::transmute::<Option<common::Rect>, Option<Rect>>(area)) };
-}
-
-fn size() -> common::Size {
-    unsafe { mem::transmute::<Size, common::Size>(state::size()) }
-}
-
-fn mouse_position() -> common::Point {
-    unsafe { mem::transmute::<Point, common::Point>(state::mouse::position()) }
-}
-
-//Note: index selects a cell in *a single* layer, in case you have composition mode on.
-//To pick on different layers, set the current layer then pick.
-fn pick(point: common::Point, index: i32) -> char {
-    terminal::pick(
-        unsafe { mem::transmute::<common::Point, Point>(point) },
-        index,
-    )
-}
-
-fn key_pressed(key: common::KeyCode) -> bool {
-    terminal::state::key_pressed(unsafe { mem::transmute::<common::KeyCode, KeyCode>(key) })
-}
-
-fn set_colors(fg: common::Color, bg: common::Color) {
-    terminal::set_colors(
-        unsafe { mem::transmute::<common::Color, Color>(fg) },
-        unsafe { mem::transmute::<common::Color, Color>(bg) },
-    );
-}
-
-fn get_colors() -> (common::Color, common::Color) {
-    (get_foreground(), get_background())
-}
-
-fn set_foreground(fg: common::Color) {
-    terminal::set_foreground(unsafe { mem::transmute::<common::Color, Color>(fg) });
-}
-fn get_foreground() -> common::Color {
-    unsafe { mem::transmute::<Color, common::Color>(terminal::state::foreground()) }
-}
-fn set_background(bg: common::Color) {
-    terminal::set_background(unsafe { mem::transmute::<common::Color, Color>(bg) })
-}
-fn get_background() -> common::Color {
-    unsafe { mem::transmute::<Color, common::Color>(terminal::state::background()) }
 }

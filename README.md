@@ -1,35 +1,15 @@
-This is a template to make it easy to get started with BearLibTerminal.
+# er
 
-This has been tested on Linux and Windows. MacOS currently is untested.
+`er` stands for Executable Runner. This is a very simple shell, (read: without a terminal emulator), that only runs execuatbles and does not offer scripting beyond a few ways to chain commands together.
 
-## Installing required lib on Linux
+#### Licensing
 
-This program relies on `libBearLibTerminal.so` so that should be copied into `usr/local/lib` or another folder indicated by this command: `ldconfig -v 2>/dev/null | grep -v ^$'\t'`
+This code is available under the MIT License.
 
-then you should run `sudo ldconfig` to complete the installation.
+The initial version of this project was based on the code from Josh McGuigan's [build-your-own-shell article](https://www.joshmcguigan.com/blog/build-your-own-shell-rust/), specifically [from this commit](https://github.com/JoshMcguigan/bubble-shell/blob/a6b81d837e4f5e68cf0b72a4d55e95fb08a47640/src/main.rs). That code is also available under MIT.
 
-Then the executable should run correctly.
+#### What's in this "old" folder?
 
-Alternately if your OS has a package for BearLibTerminal, that may work as well.
+That folder contains a previous project with the same name, but which was also trying to supply a terminal emulator as well.
 
-Once that's done compiling in debug mode with `cargo build` and release mode with `cargo build --release` should work.
-
-## Compiling for Windows
-
-Install [Rust](https://rustup.rs/) if you haven't already.
-
-You will also need a copy of the precompiled `BearLibTerminal.dll` and `BearLibTerminal.lib`. This version is currently tested against 0.15.7 [found here](http://foo.wyrd.name/en:bearlibterminal#download).
-
-`BearLibTerminal.dll` is required to run the program and must be distributed along with the binary.
-
-`BearLibTerminal.lib` is required to build the program.
-
-Copy both `BearLibTerminal.lib` and `BearLibTerminal.dll` to the project root, then building using `cargo` should work as expected.
-
-### Windows release
-
-Run `cargo build --release` then copy the exe in `./target/release` to the desired location as well as `BearLibTerminal.dll` and any necessary assets (graphics, sound, etc.).
-
-### History
-
-This was based on [another template](https://github.com/Ryan1729/live-code-bear-lib-terminal-template) which had a nice feature that was hard to get working cross-platform and which made deploying on windows a pain. This version attempts to increase compatibility by removing the feature.
+That code is available, again, under the MIT License.

@@ -4,10 +4,13 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 
 fn main(){
+    print!("er - executable runner v{}\n\n", env!("CARGO_PKG_VERSION"));
+
     loop {
-        // use the `>` character as the prompt
+        let current_dir = env::current_dir().unwrap_or_default();
+
+        print!("{}>", current_dir.display());
         // need to explicitly flush this to ensure it prints before read_line
-        print!("> ");
         stdout().flush().unwrap();
 
         let mut input = String::new();

@@ -1,19 +1,26 @@
 use std::env;
-use std::io::{stdin, stdout, Write, Read, BufRead, BufReader, BufWriter};
+use std::fs::{self, File};
+use std::io::{stdin, stdout, BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::fs::{self, File};
 
 const HISTORY_NAME: &'static str = "er_history";
 const TEMP_HISTORY_NAME: &'static str = "er_history_temp";
 
-fn main(){
+fn main() {
     print!("er - executable runner v{}\n\n", env!("CARGO_PKG_VERSION"));
 
-    let mut history_path = match env::current_exe().map(|mut p| {p.pop(); p.push(HISTORY_NAME); p}) {
+    let mut history_path = match env::current_exe().map(|mut p| {
+        p.pop();
+        p.push(HISTORY_NAME);
+        p
+    }) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Could locate executable path. Using working directory.\n{}", e);
+            eprintln!(
+                "Could locate executable path. Using working directory.\n{}",
+                e
+            );
             PathBuf::from(".")
         }
     };
@@ -22,23 +29,26 @@ fn main(){
 
     let mut history = {
         let result = File::open(&history_path)
-        .map(BufReader::new)
-        .and_then(|mut f| {
-            let mut v = Vec::with_capacity(f.by_ref().lines().count());
+            .map(BufReader::new)
+            .and_then(|mut f| {
+                let mut v = Vec::with_capacity(f.by_ref().lines().count());
 
-            for line in f.lines() {
-                let line = line?;
-                v.push(line);
-            }
+                for line in f.lines() {
+                    let line = line?;
+                    v.push(line);
+                }
 
-            Ok(v)
-        });
+                Ok(v)
+            });
 
         match result {
             Ok(v) => v,
             Err(e) => {
                 should_not_save_history = false;
-                eprintln!("Could not read history. Saving history is disabled for this session.\n{}", e);
+                eprintln!(
+                    "Could not read history. Saving history is disabled for this session.\n{}",
+                    e
+                );
                 Vec::new()
             }
         }
@@ -78,7 +88,6 @@ fn main(){
             eprintln!("Could not save history.\n{}", e);
         }
     }
-
 }
 
 fn command_loop(history: &mut Vec<String>) {
@@ -99,11 +108,17 @@ fn command_loop(history: &mut Vec<String>) {
         let mut commands = input.trim().split(" | ").peekable();
         let mut previous_command = None;
 
-        while let Some(command) = commands.next()  {
-
+        while let Some(command) = commands.next() {
             // everything after the first whitespace character is interpreted as args to the command
             let mut parts = command.trim().split_whitespace();
-            let command = parts.next().unwrap();
+            let command = if let Some(command) = parts.next() {
+                command
+            } else {
+                previous_command = None;
+                //don't leave blank lines in history
+                history.pop();
+                continue;
+            };
             let args = parts;
 
             match command {
@@ -116,12 +131,12 @@ fn command_loop(history: &mut Vec<String>) {
                     }
 
                     previous_command = None;
-                },
+                }
                 "exit" => return,
                 command => {
-                    let stdin = previous_command
-                        .map_or(Stdio::inherit(),
-                                |output: Child| Stdio::from(output.stdout.unwrap()));
+                    let stdin = previous_command.map_or(Stdio::inherit(), |output: Child| {
+                        Stdio::from(output.stdout.unwrap())
+                    });
 
                     let stdout = if commands.peek().is_some() {
                         // there is another command piped behind this one
@@ -140,11 +155,13 @@ fn command_loop(history: &mut Vec<String>) {
                         .spawn();
 
                     match output {
-                        Ok(output) => { previous_command = Some(output); },
+                        Ok(output) => {
+                            previous_command = Some(output);
+                        }
                         Err(e) => {
                             previous_command = None;
                             eprintln!("{}", e);
-                        },
+                        }
                     };
                 }
             }
@@ -154,6 +171,5 @@ fn command_loop(history: &mut Vec<String>) {
             // block until the final command has finished
             final_command.wait().unwrap();
         }
-
     }
 }

@@ -1,6 +1,5 @@
 # TODO
 
-* don't crash on an empty string for input
 * echo
 * fix extra `\r\n` in history
 * actually allow navigating history

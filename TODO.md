@@ -1,6 +1,7 @@
 # TODO
 
 * echo
+    * echo we can pipe from
 * fix extra `\r\n` in history
 * actually allow navigating history
 * file-based tab completion

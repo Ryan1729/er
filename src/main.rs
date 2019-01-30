@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::{self, File};
-use std::io::{stdin, stdout, BufRead, BufReader, BufWriter, Read, Write};
+use std::io::{stdin, stdout, BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
@@ -33,6 +33,7 @@ fn main() {
             .and_then(|mut f| {
                 let mut v = Vec::with_capacity(f.by_ref().lines().count());
 
+                f.seek(SeekFrom::Start(0))?;
                 for line in f.lines() {
                     let line = line?;
                     v.push(line);
@@ -68,7 +69,6 @@ fn main() {
 
         for line in history.iter() {
             writer.write(line.as_bytes())?;
-            writer.write(b"\n")?;
         }
 
         writer.flush()
@@ -90,6 +90,31 @@ fn main() {
     }
 }
 
+fn push_history(history: &mut Vec<String>, mut line: String) {
+    //remove all but the last newline
+    let mut index = None;
+    let mut last_char = 'a';
+    for (i, c) in line.chars().enumerate() {
+        if (last_char != '\r' || last_char == '\n') && (c == '\r' || c == '\n') {
+            index = Some(i);
+        }
+        last_char = c;
+    }
+
+    if last_char == '\r' || last_char == '\n' {
+        if let Some(index) = index {
+            line.truncate(index + 1);
+            //in case it's a '\r'
+            line.pop();
+            line.push('\n');
+        }
+    }
+
+    if line.len() > 0 {
+        history.push(line);
+    }
+}
+
 fn command_loop(history: &mut Vec<String>) {
     loop {
         let current_dir = env::current_dir().unwrap_or_default();
@@ -101,7 +126,7 @@ fn command_loop(history: &mut Vec<String>) {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
 
-        history.push(input.clone());
+        push_history(history, input.clone());
 
         // read_line leaves a trailing newline, which trim removes
         // this needs to be peekable so we can determine when we are on the last command
@@ -115,8 +140,6 @@ fn command_loop(history: &mut Vec<String>) {
                 command
             } else {
                 previous_command = None;
-                //don't leave blank lines in history
-                history.pop();
                 continue;
             };
             let args = parts;
@@ -131,6 +154,17 @@ fn command_loop(history: &mut Vec<String>) {
                     }
 
                     previous_command = None;
+                }
+                "echo" => {
+                    let mut sep = "";
+                    for arg in args {
+                        print!("{}{}", sep, arg);
+                        sep = " ";
+                    }
+                    print!("\n");
+
+                    // need to explicitly flush this to ensure it prints before the next iteration
+                    stdout().flush().unwrap();
                 }
                 "exit" => return,
                 command => {
